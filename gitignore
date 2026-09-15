@@ -1,0 +1,21 @@
+# Credenciales — NUNCA subir
+env.txt
+.env
+
+# Salidas generadas (mapas y GeoTIFF): son artefactos, no se versionan
+outputs/
+
+# Archivos temporales del proceso
+inmemory.nc
+hist_inmemory.nc
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
