@@ -543,6 +543,14 @@ if files_copied:
 
 # ===== Celda 29 =====
 import os
+
+# --- Modo prueba: si PMA_SKIP_PUBLISH esta activo, se detiene aqui ---
+# Los mapas ya se generaron en las celdas anteriores; solo se omite la
+# publicacion en GeoServer. Sirve para validar el pipeline sin tocar produccion.
+if os.environ.get("PMA_SKIP_PUBLISH", "").strip().lower() in ("1", "true", "yes", "si"):
+    print(">>> PMA_SKIP_PUBLISH activo: mapas generados correctamente; se OMITE la publicacion en GeoServer.")
+    raise SystemExit(0)
+
 import glob
 import shutil
 from zipfile import ZipFile
