@@ -3,10 +3,10 @@ name: PMA - Prueba (solo genera mapas, sin publicar ni correo)
 on:
   workflow_dispatch:
     inputs:
-      month: 9
+      month:
         description: "Mes objetivo 1-12 (vacio = mes actual)"
         required: false
-      year: 2026
+      year:
         description: "Anio objetivo (vacio = anio actual)"
         required: false
       departments:
