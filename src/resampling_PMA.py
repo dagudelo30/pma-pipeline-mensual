@@ -526,7 +526,16 @@ for src_file in output_files:
         continue
 
     # Copiar con nuevo nombre
-    new_filename = f"climate_forecast_monthly_st_{dept_folder}_{var_type}_{timestamp}.tif"
+    # Prefijo del nombre de los granules; por defecto = nombre del workspace (misma convencion).
+    _file_prefix = (os.environ.get("GEO_FILE_PREFIX", "").strip()
+                    or os.environ.get("GEO_WORKSPACE", "").strip()
+                    or "pma")
+    # Etiqueta opcional para diferenciar corridas (pruebas de agendamiento).
+    # Se usa un formato con guiones para NO introducir grupos largos de digitos
+    # que puedan confundir la deteccion de tiempo del mosaico (que lee el YYYYMM).
+    _tag = os.environ.get("PMA_GRANULE_TAG", "").strip()
+    _tag_suffix = f"_{_tag}" if _tag else ""
+    new_filename = f"{_file_prefix}_st_{dept_folder}_{var_type}_{timestamp}{_tag_suffix}.tif"
     dst_dir = os.path.join(base_path_geoserver, var_type, dept_folder)
     dst_file = os.path.join(dst_dir, new_filename)
 
@@ -694,10 +703,20 @@ departamentos = ["amazonas", "caqueta", "putumayo"]
 variables = ["pct_change", "spei"]
 
 # Leer desde archivo env.txt
-gs_url = "https://geo.aclimate.org/geoserver/rest/"
+# Todo viene de variables de entorno (GitHub Secrets). Sin defaults sensibles
+# en el codigo, para no exponer URL ni workspace en un repositorio publico.
+gs_url = os.environ.get("GEO_URL", "").strip()
 username = config.get("GEO_USER")
 password = config.get("GEO_PWD")
-ws_name = "climate_forecast_monthly"
+ws_name = os.environ.get("GEO_WORKSPACE", "").strip()
+store_prefix = os.environ.get("GEO_STORE_PREFIX", "").strip() or ws_name   # vacio -> usa el nombre del workspace
+
+if not gs_url or not ws_name:
+    raise ValueError(
+        "Faltan GEO_URL y/o GEO_WORKSPACE. Definelas como GitHub Secrets "
+        "(o con export en local). No hay valores por defecto para no exponer "
+        "datos del servidor en un repositorio publico."
+    )
 
 print(f"  URL: {gs_url}")
 print(f"  Usuario: {username}")
@@ -710,7 +729,7 @@ try:
 
     for var in variables:
         for depar in departamentos:
-            store_name = f"{ws_name}_st_{depar}_{var}"
+            store_name = f"{store_prefix}_st_{depar}_{var}"
             rasters_dir = os.path.join(base_path_geoserver, var, depar)
 
             tmp_root = os.path.join(base_path_geoserver, "tmp_mosaic")
