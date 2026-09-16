@@ -1,0 +1,144 @@
+name: PMA - Produccion (diario, publica proximos 3 meses)
+
+on:
+  schedule:
+    # A diario del dia 8 al 27, 06:00 hora Colombia (11:00 UTC).
+    # Poll diario: publica cada mes objetivo apenas el IDEAM lo libere.
+    - cron: "0 11 8-27 * *"
+  workflow_dispatch:
+    inputs:
+      base_month:
+        description: "Mes base 1-12 (vacio = mes actual). Genera los 3 meses siguientes."
+        required: false
+      base_year:
+        description: "Anio base (vacio = anio actual)"
+        required: false
+      n_meses:
+        description: "Cuantos meses hacia adelante (vacio = 3)"
+        required: false
+      require_fresh:
+        description: "Exigir corrida del mes segun fecha de subida (1=si, 0=no; vacio=1)"
+        required: false
+
+permissions:
+  contents: write        # para el commit de estado + bitacora (keepalive)
+
+concurrency:
+  group: pma-produccion
+  cancel-in-progress: false
+
+jobs:
+  produccion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar orquestador
+        id: orq
+        working-directory: src
+        env:
+          GEO_USER:         ${{ secrets.GEO_USER }}
+          GEO_PWD:          ${{ secrets.GEO_PWD }}
+          GEO_URL:          ${{ secrets.GEO_URL }}
+          GEO_WORKSPACE:    ${{ secrets.GEO_WORKSPACE }}
+          GEO_STORE_PREFIX: ${{ secrets.GEO_STORE_PREFIX }}
+          GEO_FILE_PREFIX:  ${{ secrets.GEO_FILE_PREFIX }}
+          PMA_DEPARTMENTS: "Caquetá,Amazonas,Putumayo"
+          PMA_N_MESES:  ${{ github.event.inputs.n_meses }}
+          PMA_BASE_MONTH: ${{ github.event.inputs.base_month }}
+          PMA_BASE_YEAR:  ${{ github.event.inputs.base_year }}
+          PMA_REQUIRE_FRESH: ${{ github.event.inputs.require_fresh }}
+        run: python orquestador.py
+
+      - name: Leer resultado
+        id: res
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          try:
+              r = json.load(open("outputs/resultado.json"))
+          except Exception:
+              r = {"ciclo":"?","publicados":[],"ya_estaban":[],"pendientes":[],"errores":[]}
+          j = lambda k: ", ".join(r.get(k, [])) or "-"
+          print("publicados=" + str(len(r.get("publicados", []))))
+          print("errores=" + str(len(r.get("errores", []))))
+          print("periodo=" + str(r.get("ciclo", "?")))
+          print("resumen<<EOF_R")
+          print("Ciclo: " + str(r.get("ciclo","?")))
+          print("Publicados ahora: " + j("publicados"))
+          print("Ya estaban:       " + j("ya_estaban"))
+          print("Pendientes:       " + j("pendientes"))
+          print("Errores:          " + j("errores"))
+          print("EOF_R")
+          PY
+
+      - name: Guardar salidas como artefacto
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pma-prod-${{ steps.res.outputs.periodo }}
+          path: outputs/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Commit de estado + bitacora (keepalive)
+        if: always()
+        run: |
+          git config user.name  "pma-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p logs state
+          echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') | ciclo=${{ steps.res.outputs.periodo }} | publicados=${{ steps.res.outputs.publicados }} | errores=${{ steps.res.outputs.errores }} | run=${{ github.run_id }}" >> logs/corridas.log
+          git add logs/corridas.log state/ 2>/dev/null || true
+          git commit -m "run: ${{ steps.res.outputs.periodo }} (pub=${{ steps.res.outputs.publicados }}, err=${{ steps.res.outputs.errores }})" || { echo "Sin cambios que commitear"; exit 0; }
+          git push
+
+      - name: Correo de exito
+        if: steps.orq.outcome == 'success' && steps.res.outputs.publicados != '0'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: PMA Bot <${{ secrets.MAIL_USER }}>
+          to: destino1@ejemplo.com
+          subject: "OK - PMA publico pronosticos (${{ steps.res.outputs.periodo }})"
+          body: |
+            El proceso PMA publico nuevos pronosticos en GeoServer.
+
+            ${{ steps.res.outputs.resumen }}
+
+            Log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          attachments: outputs/mapa_*.png
+
+      - name: Correo de error
+        if: failure() || steps.res.outputs.errores != '0'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: PMA Bot <${{ secrets.MAIL_USER }}>
+          to: destino1@ejemplo.com
+          subject: "ERROR - PMA fallo al publicar (${{ steps.res.outputs.periodo }})"
+          body: |
+            El proceso PMA tuvo un error al publicar en GeoServer.
+
+            ${{ steps.res.outputs.resumen }}
+
+            Revisa el log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

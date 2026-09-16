@@ -88,8 +88,21 @@ print('Librerias importadas correctamente.')
 ideam_url = f"{IDEAM_BASE_URL}/ENSAMBLE_PREC_MENSUAL_{MONTH_STR}_{YEAR}.nc"
 print(f"Descargando pronostico IDEAM: {ideam_url}")
 
-r = requests.get(ideam_url, timeout=120)
-r.raise_for_status()
+# Descarga con reintentos ante caidas temporales del servidor del IDEAM.
+import time as _time
+_intentos = int(os.environ.get("PMA_HTTP_RETRIES", 4))
+_espera   = int(os.environ.get("PMA_HTTP_BACKOFF", 20))
+r = None
+for _i in range(1, _intentos + 1):
+    try:
+        r = requests.get(ideam_url, timeout=180)
+        r.raise_for_status()
+        break
+    except Exception as _e:
+        print(f"  Intento {_i}/{_intentos} de descarga fallo: {_e}")
+        if _i == _intentos:
+            raise
+        _time.sleep(_espera)
 
 nc  = Dataset("inmemory.nc", memory=r.content)
 ds  = xr.open_dataset(NetCDF4DataStore(nc)).rename({"latitude": "y", "longitude": "x"})
