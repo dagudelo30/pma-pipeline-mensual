@@ -26,7 +26,7 @@ import os  # leer parametros desde variables de entorno (en local usa los defaul
 MONTH = int(os.environ.get("PMA_MONTH", 3))     # mes objetivo (1-12) - en Actions lo inyecta el workflow
 YEAR  = int(os.environ.get("PMA_YEAR", 2026))   # anio objetivo - idem
 
-# URL base pronostico IDEAM
+# URL base pronóstico IDEAM
 # Plantilla: ENSAMBLE_PREC_MENSUAL_{MM}_{YYYY}.nc
 IDEAM_BASE_URL = "https://bart.ideam.gov.co/wrfideam/new_modelo/CPT/netcdf/PREC"
 
@@ -86,7 +86,7 @@ print('Librerias importadas correctamente.')
 
 # ===== Celda 7 =====
 ideam_url = f"{IDEAM_BASE_URL}/ENSAMBLE_PREC_MENSUAL_{MONTH_STR}_{YEAR}.nc"
-print(f"Descargando pronostico IDEAM: {ideam_url}")
+print(f"Descargando pronóstico IDEAM: {ideam_url}")
 
 # Descarga con reintentos ante caidas temporales del servidor del IDEAM.
 import time as _time
@@ -109,7 +109,7 @@ ds  = xr.open_dataset(NetCDF4DataStore(nc)).rename({"latitude": "y", "longitude"
 ds  = ds.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=False)
 ds  = ds.rio.write_crs("EPSG:4326", inplace=False)
 
-print(f"Pronostico cargado. Variables: {list(ds.data_vars)}")
+print(f"Pronóstico cargado. Variables: {list(ds.data_vars)}")
 print(f"Extension: x=[{float(ds.x.min()):.2f}, {float(ds.x.max()):.2f}]  y=[{float(ds.y.min()):.2f}, {float(ds.y.max()):.2f}]")
 ds
 
@@ -146,7 +146,7 @@ else:
 precip = ds_filter["precip"].rio.reproject_match(ds_clip, resampling=Resampling.bilinear)
 spei   = ds_filter["spei"].rio.reproject_match(ds_clip, resampling=Resampling.nearest).round()
 
-print(f"Grillas alineadas. Pronostico: {dict(ds_clip.sizes)}  Historico: {dict(precip.sizes)}")
+print(f"Grillas alineadas. Pronóstico: {dict(ds_clip.sizes)}  Historico: {dict(precip.sizes)}")
 
 # ===== Celda 13 =====
 print("Descargando limites administrativos Colombia (Natural Earth 10m)...")
@@ -432,7 +432,7 @@ for dept in DEPARTMENTS:
     add_geodesic_scalebar(ax, lon_start=LON_SCALE, lat_bar=LAT_SCALE,
                           length_km=200, height_deg=0.10)
     add_north_arrow(ax, lon=LON_NORTH, lat=LAT_NORTH, size_deg=SIZE_NORTH)
-    ax.set_title(f"Pronostico del cambio porcentual de la precipitación en {dept} - {MONTH_STR}/{YEAR}")
+    ax.set_title(f"Pronóstico del cambio porcentual de la precipitación en {dept} - {MONTH_STR}/{YEAR}")
     ax.set_xlabel("Longitud (\u00b0)"); ax.set_ylabel("Latitud (\u00b0)")
     ax.text(0.01, 0.01,  "Fuente: Generado a partir de CHIRPS y AgERA5. Limite: División departamental, Natural Earth a 10m.",
             transform=ax.transAxes, fontsize=5.5, va='bottom')
