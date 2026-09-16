@@ -114,7 +114,7 @@ jobs:
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASSWORD }}
           from: PMA Bot <${{ secrets.MAIL_USER }}>
-          to: destino1@ejemplo.com
+          to: d.agudelo@cgiar.org
           subject: "OK - PMA publico pronosticos (${{ steps.res.outputs.periodo }})"
           body: |
             El proceso PMA publico nuevos pronosticos en GeoServer.
